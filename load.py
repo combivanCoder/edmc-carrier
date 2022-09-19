@@ -3,16 +3,35 @@ import sys
 import tkinter as tk
 import myNotebook as nb
 from config import config
+from config import appname
 from notifications import CarrierNotificationDispatcher
+import logging
+import os
+import json
 
 # config constants
 WEBHOOK_URL_CONFIG_KEY = 'edmc-carrier.webhook_url'
 CARRIER_NAME_CONFIG_KEY = 'edmc-carrier.carrier_name'
 CARRIER_IMAGE_URL_CONFIG_KEY = 'edmc-carrier.carrier_image_url'
 
+# TODO need to look at encapsulating a lot of this
 this = sys.modules[__name__]
 carrier_notification_dispatcher = CarrierNotificationDispatcher()
 
+def defineLogger():
+    plugin_name = os.path.basename(os.path.dirname(__file__))
+
+    retVal = logging.getLogger(f'{appname}.{plugin_name}')
+    if (not retVal.hasHandlers()):
+        retVal.setLevel(logging.INFO)
+        logger_channel = logging.StreamHandler()
+        logger_formatter = logging.Formatter(f'%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d:%(funcName)s: %(message)s')
+        logger_formatter.default_time_format = '%Y-%m-%d %H:%M:%S'
+        logger_formatter.default_msec_format = '%s.%03d'
+        logger_channel.setFormatter(logger_formatter)
+        retVal.addHandler(logger_channel)
+
+    return retVal
 
 def plugin_start3(plugin_dir):
     print("Loading EDMC-Carrier {}. Setting preferences...".format(plugin_dir))
@@ -71,22 +90,43 @@ def prefs_changed(cmdr, is_beta):
 
 
 def journal_entry(cmdr, is_beta, system, station, entry, state):
+    """EDMC Event hook: used to capture carrier jump details from player journal"""
     event_name = entry.get("event")
+    logger = defineLogger()
+
+    print(json.dumps(entry))
+    return
     
-    if event_name == 'CarrierJumpRequest':
-        curr_system = system
-        dest_system = entry.get('SystemName')
-        timestamp = entry.get('timestamp')
-        carrier_notification_dispatcher.send_jump_request_notification(cmdr, curr_system, dest_system, timestamp)
+    if (entry["event"] == "CarrierJumpRequest"):
+        # Jump Requested
+        carrierCurrentLocation = None
+        carrierTargetLocation = None
+        logger.info(f'{carrierCurrentLocation} / {carrierTargetLocation}')
+        logger.info(json.dumps(entry))
+        print(json.dumps(entry))
+        # carrier_notification_dispatcher.send_jump_request_notification(
+        #     cmdr,
+        #     carrierCurrentLocation,
+        #     carrierTargetLocation,
+        #     entry["timestamp"]
+        # )
+
+    ## DISABLED DURING TESTING
+    # if event_name == 'CarrierJumpRequest':
+    #     curr_system = system
+    #     dest_system = entry.get('SystemName')
+    #     timestamp = entry.get('timestamp')
+    #     carrier_notification_dispatcher.send_jump_request_notification(cmdr, curr_system, dest_system, timestamp)
 
 
-    if event_name == "CarrierJumpCancelled":
-        carrier_notification_dispatcher.send_jump_cancellation_notification(cmdr, system)
+    # if event_name == "CarrierJumpCancelled":
+    #     carrier_notification_dispatcher.send_jump_cancellation_notification(cmdr, system)
 
 
-    if event_name == "CarrierJump":
-        timestamp = entry.get('timestamp')
-        carrier_notification_dispatcher.send_jump_notification(system, timestamp)
+    # if event_name == "CarrierJump":
+    #     timestamp = entry.get('timestamp')
+    #     carrier_notification_dispatcher.send_jump_notification(system, timestamp)
+    ## -----
 
 
 def __load_config(key):
